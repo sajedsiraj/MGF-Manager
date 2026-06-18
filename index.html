@@ -433,18 +433,18 @@ function WorkersTab({ workers }) {
 }
 
 // Payroll tab
+function getRange(period) {
+  const t=new Date();
+  if (period==='week') return getWeekDates(0).map(fmtDs);
+  if (period==='fortnight') return [...getWeekDates(0).map(fmtDs),...getWeekDates(-1).map(fmtDs)];
+  const dates=[], d=new Date(t.getFullYear(),t.getMonth(),1);
+  while(d.getMonth()===t.getMonth()){dates.push(fmtDs(d));d.setDate(d.getDate()+1);}
+  return dates;
+}
 function PayrollTab({ workers, shifts }) {
   const [period, setPeriod] = useState('fortnight');
-  const getRange = () => {
-    const t=new Date();
-    if (period==='week') return getWeekDates(0).map(fmtDs);
-    if (period==='fortnight') return [...getWeekDates(0).map(fmtDs),...getWeekDates(-1).map(fmtDs)];
-    const dates=[], d=new Date(t.getFullYear(),t.getMonth(),1);
-    while(d.getMonth()===t.getMonth()){dates.push(fmtDs(d));d.setDate(d.getDate()+1);}
-    return dates;
-  };
   const calc = (w) => {
-    const dates=getRange();
+    const dates=getRange(period);
     const h=dates.reduce((s,date)=>{const sh=shifts.docs.find(x=>x.workerId===w.id&&x.date===date);return s+(sh?hw(sh.start,sh.end):0);},0);
     return {hours:parseFloat(h.toFixed(2)),pay:parseFloat((h*w.rate).toFixed(2))};
   };
