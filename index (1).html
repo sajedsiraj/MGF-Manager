@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Grill Friend</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    const app = initializeApp({
+      apiKey:"AIzaSyBwzt6DCpp3liVK3wI5NzrUd0mbz9eXWIQ",
+      authDomain:"mygrillfriend-b9343.firebaseapp.com",
+      projectId:"mygrillfriend-b9343",
+      storageBucket:"mygrillfriend-b9343.firebasestorage.app",
+      messagingSenderId:"306056058085",
+      appId:"1:306056058085:web:92e3403299930d9b9b300c"
+    });
+    window.__db = getFirestore(app);
+    window.__fs = { collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, updateDoc };
+    window.__fbReady = true;
+    window.dispatchEvent(new Event("firebase-ready"));
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0e0e0e; --surface: #161616; --surface2: #1e1e1e;
+      --border: #222; --text: #f0ebe4; --muted: #555;
+      --amber: #C8873A; --red: #cc3222; --green: #3daa6e;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', -apple-system, sans-serif; min-height: 100vh; }
+    input, select, textarea { font-family: 'DM Sans', sans-serif; }
+    input[type="time"]::-webkit-calendar-picker-indicator,
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const LOGO = "data:image/webp;base64,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";
+const COLORS = ["#C8873A","#7C9E6F","#5B8FBF","#9B6DB5","#BF6B5B","#6BAABF","#BF9B5B","#8B8B6B"];
+
+// Firebase hook
+function useFirestore(col) {
+  const [docs, setDocs] = useState([]);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const init = () => {
+      const { collection, onSnapshot } = window.__fs;
+      const unsub = onSnapshot(collection(window.__db, col), snap => {
+        setDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setReady(true);
+      });
+      return unsub;
+    };
+    if (window.__fbReady) { const u = init(); return () => u && u(); }
+    else {
+      const h = () => init();
+      window.addEventListener("firebase-ready", h);
+      return () => window.removeEventListener("firebase-ready", h);
+    }
+  }, [col]);
+  const add = async (data) => { const { addDoc, collection } = window.__fs; return await addDoc(collection(window.__db, col), { ...data, createdAt: Date.now() }); };
+  const set = async (id, data) => { const { doc, setDoc } = window.__fs; await setDoc(doc(window.__db, col, id), data, { merge: true }); };
+  const remove = async (id) => { const { doc, deleteDoc } = window.__fs; await deleteDoc(doc(window.__db, col, id)); };
+  const update = async (id, data) => { const { doc, updateDoc } = window.__fs; await updateDoc(doc(window.__db, col, id), data); };
+  return { docs, ready, add, set, remove, update };
+}
+
+// Helpers
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function daysBetween(a, b) { return Math.floor((new Date(b) - new Date(a)) / 86400000); }
+function fmtDate(d) { if (!d) return '—'; return new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }); }
+function fmtMoney(n) { return '$' + parseFloat(n||0).toFixed(2); }
+function getWeekDates(offset=0) {
+  const now = new Date(), day = now.getDay();
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - ((day+6)%7) + offset*7);
+  return Array.from({length:7}, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+function fmtDs(d) { return d.toISOString().split('T')[0]; }
+function hw(start, end) {
+  if (!start||!end) return 0;
+  const [sh,sm]=start.split(':').map(Number), [eh,em]=end.split(':').map(Number);
+  const diff=(eh*60+em-(sh*60+sm))/60;
+  return diff>0?parseFloat(diff.toFixed(2)):0;
+}
+function isToday(d) { const t=new Date(); return d.getDate()===t.getDate()&&d.getMonth()===t.getMonth()&&d.getFullYear()===t.getFullYear(); }
+function excelDate(s) { return new Date((s-25569)*86400000).toISOString().split('T')[0]; }
+function excelTime(s) { const tot=Math.round((s%1)*86400),h=Math.floor(tot/3600),m=Math.floor((tot%3600)/60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+
+function getPayInfo(worker, allShifts) {
+  const lastPaid = worker.lastPaidDate || null;
+  const lastAmount = worker.lastPaidAmount || 0;
+  const now = todayStr();
+  const sinceDate = lastPaid || now;
+  const relevant = allShifts.filter(s => s.workerId === worker.id && s.date > sinceDate);
+  const accruedHours = parseFloat(relevant.reduce((sum,s) => sum + hw(s.start,s.end), 0).toFixed(2));
+  const accruedPay = parseFloat((accruedHours * (worker.rate||0)).toFixed(2));
+  const daysSince = lastPaid ? daysBetween(lastPaid, now) : null;
+  let daysUntil = null, nextPayDate = null;
+  if (lastPaid) {
+    let next = new Date(lastPaid + 'T00:00:00');
+    next.setDate(next.getDate() + 14);
+    const nowD = new Date(now + 'T00:00:00');
+    while (next <= nowD) next.setDate(next.getDate() + 14);
+    nextPayDate = next.toISOString().split('T')[0];
+    daysUntil = daysBetween(now, nextPayDate);
+  }
+  return { lastPaid, lastAmount, daysSince, daysUntil, nextPayDate, accruedHours, accruedPay };
+}
+
+// Styles
+const SI = { background:'#111', border:'1px solid #222', borderRadius:6, color:'#f0ebe4', padding:'8px 10px', fontSize:13, outline:'none', width:'100%' };
+const SB = { background:'#C8873A', border:'none', color:'#fff', borderRadius:6, padding:'8px 16px', cursor:'pointer', fontWeight:600, fontSize:13 };
+const SG = { background:'transparent', border:'1px solid #222', color:'#666', borderRadius:6, padding:'6px 12px', cursor:'pointer', fontSize:12 };
+const SN = { background:'#161616', border:'1px solid #222', color:'#666', borderRadius:6, padding:'6px 12px', cursor:'pointer', fontSize:13 };
+const SC = { background:'#161616', borderRadius:10, border:'1px solid #222', marginBottom:10, overflow:'hidden' };
+
+function Empty({ msg }) { return <div style={{textAlign:'center',color:'#333',padding:'50px 0',fontSize:13}}>{msg}</div>; }
+function Kpi({ label, val, warn }) {
+  return <div><div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>{label}</div><div style={{fontFamily:'DM Mono,monospace',fontWeight:600,fontSize:13,color:warn?'#cc3222':'#f0ebe4'}}>{val}</div></div>;
+}
+
+// ShiftCell
+function ShiftCell({ shift, color, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [s, setS] = useState(shift?.start||'09:00');
+  const [e, setE] = useState(shift?.end||'17:00');
+  if (open) return (
+    <div style={{background:'#1e1e1e',borderRadius:6,padding:6,minWidth:90}}>
+      <input type="time" value={s} onChange={ev=>setS(ev.target.value)} style={{...SI,padding:'2px 4px',fontSize:11,marginBottom:3}}/>
+      <input type="time" value={e} onChange={ev=>setE(ev.target.value)} style={{...SI,padding:'2px 4px',fontSize:11,marginBottom:4}}/>
+      <div style={{display:'flex',gap:3}}>
+        <button onClick={()=>{onChange({start:s,end:e});setOpen(false);}} style={{flex:1,background:'#C8873A',border:'none',color:'#fff',borderRadius:4,padding:'3px 0',cursor:'pointer',fontSize:10,fontWeight:700}}>✓</button>
+        <button onClick={()=>{onChange(null);setOpen(false);}} style={{flex:1,background:'#252525',border:'none',color:'#666',borderRadius:4,padding:'3px 0',cursor:'pointer',fontSize:10}}>✕</button>
+      </div>
+    </div>
+  );
+  return shift ? (
+    <div onClick={()=>setOpen(true)} style={{background:color+'18',border:'1px solid '+color+'44',borderRadius:6,padding:'4px 5px',cursor:'pointer',textAlign:'center',minWidth:62}}>
+      <div style={{fontSize:11,color:color,fontWeight:600,fontFamily:'DM Mono,monospace'}}>{hw(shift.start,shift.end)}h</div>
+      <div style={{fontSize:9,color:'#555'}}>{shift.start}–{shift.end}</div>
+    </div>
+  ) : (
+    <div onClick={()=>setOpen(true)} style={{height:34,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#252525',fontSize:18,borderRadius:6,minWidth:62,transition:'background 0.1s'}}
+      onMouseEnter={ev=>ev.currentTarget.style.background='#1e1e1e'}
+      onMouseLeave={ev=>ev.currentTarget.style.background='transparent'}>+</div>
+  );
+}
+
+// Roster
+const DSHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function RosterTab({ workers, shifts }) {
+  const [off, setOff] = useState(0);
+  const dates = getWeekDates(off);
+  const getShift = (wid, date) => shifts.docs.find(s=>s.workerId===wid&&s.date===date)||null;
+  const setShift = async (wid, date, val) => {
+    const id = wid+'_'+date;
+    if (val) await shifts.set(id, {workerId:wid,date,...val});
+    else await shifts.remove(id);
+  };
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+        <button onClick={()=>setOff(o=>o-1)} style={SN}>← Prev</button>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontWeight:600,fontSize:14}}>{dates[0].toLocaleDateString('en-AU',{day:'numeric',month:'short'})} – {dates[6].toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</div>
+          {off===0&&<div style={{fontSize:10,color:'#C8873A',letterSpacing:1,textTransform:'uppercase',marginTop:2}}>This week</div>}
+        </div>
+        <button onClick={()=>setOff(o=>o+1)} style={SN}>Next →</button>
+      </div>
+      {workers.docs.length===0?<Empty msg="Add workers first"/>:(
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:560}}>
+            <thead>
+              <tr>
+                <th style={{padding:'8px',textAlign:'left',color:'#444',fontWeight:500,fontSize:10,letterSpacing:0.8,textTransform:'uppercase',borderBottom:'1px solid #222'}}>Staff</th>
+                {dates.map((d,i)=>(
+                  <th key={i} style={{padding:'8px 3px',textAlign:'center',borderBottom:'1px solid #222'}}>
+                    <div style={{fontSize:10,color:isToday(d)?'#C8873A':'#444',letterSpacing:0.5,textTransform:'uppercase'}}>{DSHORT[i]}</div>
+                    <div style={{fontFamily:'DM Mono,monospace',fontSize:13,fontWeight:isToday(d)?700:400,color:isToday(d)?'#C8873A':'#777'}}>{d.getDate()}</div>
+                  </th>
+                ))}
+                <th style={{padding:'8px 3px',textAlign:'center',color:'#444',fontWeight:500,fontSize:10,letterSpacing:0.8,textTransform:'uppercase',borderBottom:'1px solid #222'}}>Hrs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workers.docs.map(w=>{
+                const wkH=dates.reduce((sum,d)=>{const s=getShift(w.id,fmtDs(d));return sum+(s?hw(s.start,s.end):0);},0);
+                return (
+                  <tr key={w.id}>
+                    <td style={{padding:'6px 8px',borderBottom:'1px solid #1a1a1a'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:7}}>
+                        <div style={{width:7,height:7,borderRadius:'50%',background:w.color,flexShrink:0}}/>
+                        <div>
+                          <div style={{fontWeight:600,fontSize:12}}>{w.name}</div>
+                          <div style={{fontSize:10,color:'#444',fontFamily:'DM Mono,monospace'}}>${w.rate}/hr</div>
+                        </div>
+                      </div>
+                    </td>
+                    {dates.map((d,i)=>{
+                      const ds=fmtDs(d), sh=getShift(w.id,ds);
+                      return <td key={i} style={{padding:'3px 2px',borderBottom:'1px solid #1a1a1a',background:isToday(d)?'#130f0d':'transparent'}}><ShiftCell shift={sh} color={w.color} onChange={v=>setShift(w.id,ds,v)}/></td>;
+                    })}
+                    <td style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontWeight:600,color:wkH>0?'#C8873A':'#2a2a2a',fontSize:13,borderBottom:'1px solid #1a1a1a'}}>{wkH>0?wkH.toFixed(1):'—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Pay card
+function PayCard({ worker, allShifts, onPaid }) {
+  const [marking, setMarking] = useState(false);
+  const [payDate, setPayDate] = useState(todayStr());
+  const { lastPaid, lastAmount, daysSince, daysUntil, nextPayDate, accruedHours, accruedPay } = getPayInfo(worker, allShifts);
+  const burnPct = daysUntil!=null ? Math.max(0,Math.min(100,((14-daysUntil)/14)*100)) : 0;
+  const urgColor = daysUntil===0?'#cc3222':daysUntil!=null&&daysUntil<=3?'#e07030':'#C8873A';
+  const markPaid = async () => {
+    await onPaid(worker.id, { lastPaidDate: payDate, lastPaidAmount: accruedPay, lastPaidHours: accruedHours });
+    setMarking(false);
+  };
+  return (
+    <div style={SC}>
+      <div style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:12,borderBottom:'1px solid #1e1e1e'}}>
+        <div style={{width:9,height:9,borderRadius:'50%',background:worker.color,flexShrink:0}}/>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:15}}>{worker.name}</div>
+          <div style={{fontSize:11,color:'#555'}}>{worker.role} · ${worker.rate}/hr · Grp {worker.payGroup||'A'}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:22,color:'#C8873A',lineHeight:1}}>{fmtMoney(accruedPay)}</div>
+          <div style={{fontSize:10,color:'#555',marginTop:2}}>{accruedHours}h since last pay</div>
+        </div>
+      </div>
+
+      {lastPaid&&(
+        <div style={{padding:'10px 16px',borderBottom:'1px solid #1e1e1e'}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+            <span style={{fontSize:10,color:'#444',textTransform:'uppercase',letterSpacing:0.5}}>Fortnight</span>
+            <span style={{fontSize:10,fontFamily:'DM Mono,monospace',color:urgColor,fontWeight:600}}>
+              {daysUntil===0?'PAY TODAY':daysUntil===1?'PAY TOMORROW':daysUntil+'d until pay'}
+            </span>
+          </div>
+          <div style={{height:3,background:'#1e1e1e',borderRadius:2,overflow:'hidden'}}>
+            <div style={{height:'100%',width:burnPct+'%',background:'linear-gradient(90deg,#5a3010,'+urgColor+')',borderRadius:2}}/>
+          </div>
+        </div>
+      )}
+
+      <div style={{padding:'12px 16px',display:'flex',gap:20,flexWrap:'wrap',borderBottom:marking?'1px solid #1e1e1e':'none'}}>
+        <Kpi label="Last paid" val={lastPaid?fmtDate(lastPaid):'Never'}/>
+        <Kpi label="Last amount" val={lastAmount?fmtMoney(lastAmount):'—'}/>
+        <Kpi label="Days since paid" val={daysSince!=null?daysSince+'d':'—'} warn={daysSince!=null&&daysSince>16}/>
+        <Kpi label="Next pay date" val={nextPayDate?fmtDate(nextPayDate):'—'}/>
+      </div>
+
+      {!marking?(
+        <div style={{padding:'10px 16px'}}>
+          <button onClick={()=>setMarking(true)} style={{...SB,background:accruedPay>0?'#C8873A':'#1e1e1e',color:accruedPay>0?'#fff':'#444',fontSize:12,padding:'7px 14px'}}>
+            {accruedPay>0?'Mark paid · '+fmtMoney(accruedPay):'Mark paid'}
+          </button>
+        </div>
+      ):(
+        <div style={{padding:'12px 16px',background:'#111',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <span style={{fontSize:12,color:'#666'}}>Pay date:</span>
+          <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{...SI,width:'auto',fontSize:12,padding:'5px 8px'}}/>
+          <span style={{fontFamily:'DM Mono,monospace',color:'#C8873A',fontWeight:600,fontSize:13}}>{fmtMoney(accruedPay)}</span>
+          <button onClick={markPaid} style={{...SB,fontSize:12,padding:'6px 14px'}}>Confirm</button>
+          <button onClick={()=>setMarking(false)} style={{...SG,fontSize:12}}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Staff tab
+function StaffTab({ workers, shifts }) {
+  const groupA = workers.docs.filter(w=>(w.payGroup||'A')==='A');
+  const groupB = workers.docs.filter(w=>w.payGroup==='B');
+  const totalOwed = workers.docs.reduce((s,w)=>s+getPayInfo(w,shifts.docs).accruedPay, 0);
+  return (
+    <div>
+      {workers.docs.length===0?<Empty msg="Add workers in the Workers tab"/>:(
+        <>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:24,paddingBottom:16,borderBottom:'1px solid #1e1e1e'}}>
+            <div>
+              <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.8,marginBottom:4}}>Total owed</div>
+              <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:32,color:'#C8873A',lineHeight:1}}>{fmtMoney(totalOwed)}</div>
+            </div>
+            <div style={{fontSize:11,color:'#444'}}>{workers.docs.length} staff</div>
+          </div>
+          {groupA.length>0&&(
+            <div style={{marginBottom:28}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'#444'}}>Group A</div>
+                <div style={{fontSize:10,fontFamily:'DM Mono,monospace',color:'#C8873A'}}>{fmtMoney(groupA.reduce((s,w)=>s+getPayInfo(w,shifts.docs).accruedPay,0))} owed</div>
+              </div>
+              {groupA.map(w=><PayCard key={w.id} worker={w} allShifts={shifts.docs} onPaid={workers.update}/>)}
+            </div>
+          )}
+          {groupB.length>0&&(
+            <div style={{marginBottom:28}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'#444'}}>Group B</div>
+                <div style={{fontSize:10,fontFamily:'DM Mono,monospace',color:'#C8873A'}}>{fmtMoney(groupB.reduce((s,w)=>s+getPayInfo(w,shifts.docs).accruedPay,0))} owed</div>
+              </div>
+              {groupB.map(w=><PayCard key={w.id} worker={w} allShifts={shifts.docs} onPaid={workers.update}/>)}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Workers tab
+function WorkersTab({ workers }) {
+  const [n, setN] = useState({name:'',rate:'',role:'',payGroup:'A'});
+  const [editing, setEditing] = useState(null);
+  const add = async () => {
+    if (!n.name.trim()||!n.rate) return;
+    await workers.add({name:n.name.trim(),rate:parseFloat(n.rate),role:n.role.trim()||'Team Member',color:COLORS[workers.docs.length%COLORS.length],payGroup:n.payGroup});
+    setN({name:'',rate:'',role:'',payGroup:'A'});
+  };
+  return (
+    <div>
+      <div style={{...SC,padding:16,marginBottom:14}}>
+        <div style={{fontSize:10,color:'#C8873A',fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:12}}>Add staff member</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <input placeholder="Name" value={n.name} onChange={e=>setN(p=>({...p,name:e.target.value}))} style={{...SI,flex:'1 1 120px'}}/>
+          <input placeholder="Role" value={n.role} onChange={e=>setN(p=>({...p,role:e.target.value}))} style={{...SI,flex:'1 1 110px'}}/>
+          <input placeholder="$/hr" type="number" value={n.rate} onChange={e=>setN(p=>({...p,rate:e.target.value}))} style={{...SI,flex:'0 0 68px'}}/>
+          <select value={n.payGroup} onChange={e=>setN(p=>({...p,payGroup:e.target.value}))} style={{...SI,flex:'0 0 98px',background:'#111',border:'1px solid #222',color:'#f0ebe4'}}>
+            <option value="A">Group A</option>
+            <option value="B">Group B</option>
+          </select>
+          <button onClick={add} style={SB}>Add</button>
+        </div>
+      </div>
+      {workers.docs.length===0?<Empty msg="No staff yet"/>:workers.docs.map(w=>(
+        <div key={w.id} style={{...SC,padding:13,display:'flex',alignItems:'center',gap:11}}>
+          <div style={{width:9,height:9,borderRadius:'50%',background:w.color,flexShrink:0}}/>
+          {editing===w.id?(
+            <div style={{display:'flex',gap:8,flex:1,flexWrap:'wrap'}}>
+              <input defaultValue={w.name} onBlur={e=>workers.update(w.id,{name:e.target.value})} style={{...SI,flex:'1 1 110px'}}/>
+              <input defaultValue={w.role} onBlur={e=>workers.update(w.id,{role:e.target.value})} style={{...SI,flex:'1 1 110px'}}/>
+              <input type="number" defaultValue={w.rate} onBlur={e=>workers.update(w.id,{rate:parseFloat(e.target.value)})} style={{...SI,width:68}}/>
+              <select defaultValue={w.payGroup||'A'} onChange={e=>workers.update(w.id,{payGroup:e.target.value})} style={{...SI,width:98,background:'#111',border:'1px solid #222',color:'#f0ebe4'}}>
+                <option value="A">Group A</option>
+                <option value="B">Group B</option>
+              </select>
+              <button onClick={()=>setEditing(null)} style={SB}>Done</button>
+            </div>
+          ):(
+            <>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:14}}>{w.name}</div>
+                <div style={{fontSize:11,color:'#555'}}>{w.role} · <span style={{fontFamily:'DM Mono,monospace'}}>${w.rate}/hr</span> · Grp {w.payGroup||'A'}</div>
+              </div>
+              <button onClick={()=>setEditing(w.id)} style={SG}>Edit</button>
+              <button onClick={()=>workers.remove(w.id)} style={{...SG,color:'#cc3222',borderColor:'#222'}}>Remove</button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Payroll tab
+function PayrollTab({ workers, shifts }) {
+  const [period, setPeriod] = useState('fortnight');
+  const getRange = () => {
+    const t=new Date();
+    if (period==='week') return getWeekDates(0).map(fmtDs);
+    if (period==='fortnight') return [...getWeekDates(0).map(fmtDs),...getWeekDates(-1).map(fmtDs)];
+    const dates=[], d=new Date(t.getFullYear(),t.getMonth(),1);
+    while(d.getMonth()===t.getMonth()){dates.push(fmtDs(d));d.setDate(d.getDate()+1);}
+    return dates;
+  };
+  const calc = (w) => {
+    const dates=getRange();
+    const h=dates.reduce((s,date)=>{const sh=shifts.docs.find(x=>x.workerId===w.id&&x.date===date);return s+(sh?hw(sh.start,sh.end):0);},0);
+    return {hours:parseFloat(h.toFixed(2)),pay:parseFloat((h*w.rate).toFixed(2))};
+  };
+  const total=workers.docs.reduce((s,w)=>s+calc(w).pay,0);
+  return (
+    <div>
+      <div style={{display:'flex',gap:6,marginBottom:20}}>
+        {[['week','Week'],['fortnight','Fortnight'],['month','Month']].map(([v,l])=>(
+          <button key={v} onClick={()=>setPeriod(v)} style={{padding:'7px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:period===v?'#C8873A':'#161616',color:period===v?'#fff':'#777',letterSpacing:0.2}}>{l}</button>
+        ))}
+      </div>
+      {workers.docs.length===0?<Empty msg="No staff yet"/>:(
+        <>
+          {workers.docs.map(w=>{
+            const {hours,pay}=calc(w);
+            return (
+              <div key={w.id} style={{...SC,padding:14}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:w.color}}/>
+                  <div style={{fontWeight:600,flex:1}}>{w.name}</div>
+                  <div style={{fontSize:11,color:'#555'}}>{w.role}</div>
+                </div>
+                <div style={{display:'flex',gap:20}}>
+                  <Kpi label="Rate" val={'$'+w.rate+'/hr'}/>
+                  <Kpi label="Hours" val={hours>0?hours+'h':'—'}/>
+                  <Kpi label="Pay" val={pay>0?fmtMoney(pay):'—'}/>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{background:'#C8873A',borderRadius:10,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
+            <div style={{fontWeight:700,fontSize:14}}>Total</div>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:24}}>{fmtMoney(total)}</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Import tab
+function ImportTab({ workers, shifts }) {
+  const [status, setStatus] = useState(null);
+  const [preview, setPreview] = useState([]);
+  const [result, setResult] = useState(null);
+  const fileRef = useRef();
+  const handleFile = async (e) => {
+    const file=e.target.files[0]; if(!file) return;
+    setStatus('loading');
+    try {
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array'});
+      const out=[];
+      wb.SheetNames.slice(1).forEach(sn=>{
+        const ws=wb.Sheets[sn];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        const name=rows[1]&&rows[1][1]?String(rows[1][1]).trim():null;
+        if(!name) return;
+        let rate=0; const shs=[];
+        for(let i=4;i<rows.length;i++){
+          const r=rows[i];
+          if(!r||r[2]===null) continue;
+          if(typeof r[2]==='string'&&r[2].toLowerCase().includes('total')) break;
+          if(typeof r[2]!=='number'||typeof r[3]!=='number') continue;
+          if(r[5]&&r[5]>0) rate=r[5];
+          shs.push({date:excelDate(r[2]),start:excelTime(r[2]),end:excelTime(r[3])});
+        }
+        if(shs.length>0) out.push({name,rate,shifts:shs});
+      });
+      const enriched=out.map(p=>{
+        const match=workers.docs.find(w=>w.name.trim().toLowerCase()===p.name.trim().toLowerCase());
+        return {...p,workerId:match?.id||null,workerColor:match?.color||'#666',matched:!!match};
+      }).filter(p=>p.shifts.length>0);
+      setPreview(enriched); setStatus('preview');
+    } catch(err){ setStatus('error'); }
+  };
+  const doImport = async () => {
+    setStatus('loading'); let imp=0,skp=0;
+    for(const p of preview){
+      if(!p.workerId){skp+=p.shifts.length;continue;}
+      for(const s of p.shifts){
+        const id=p.workerId+'_'+s.date;
+        if(shifts.docs.find(x=>x.id===id)){skp++;continue;}
+        await shifts.set(id,{workerId:p.workerId,date:s.date,start:s.start,end:s.end,source:'timesquared'});
+        imp++;
+      }
+    }
+    setResult({imported:imp,skipped:skp}); setStatus('done');
+    if(fileRef.current) fileRef.current.value='';
+  };
+  const reset=()=>{setStatus(null);setPreview([]);setResult(null);};
+  const matched=preview.filter(p=>p.matched), unmatched=preview.filter(p=>!p.matched);
+  return (
+    <div>
+      <div style={{...SC,padding:16,marginBottom:12}}>
+        <div style={{fontSize:10,color:'#C8873A',fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>Import from TimeSquared</div>
+        <div style={{fontSize:13,color:'#555',marginBottom:14}}>Export a Payroll Report (XLSX) from TimeSquared then upload here.</div>
+        {(status===null||status==='error')&&(<>
+          <label style={{...SB,display:'inline-block',cursor:'pointer'}}>Choose XLSX<input ref={fileRef} type="file" accept=".xlsx" onChange={handleFile} style={{display:'none'}}/></label>
+          {status==='error'&&<div style={{color:'#cc3222',fontSize:12,marginTop:8}}>Couldn't read that file.</div>}
+        </>)}
+        {status==='loading'&&<div style={{color:'#555',fontSize:13}}>Reading...</div>}
+        {status==='done'&&result&&(<div>
+          <div style={{background:'#0d1f16',border:'1px solid #2d5a3f',borderRadius:8,padding:12,marginBottom:10}}>
+            <div style={{color:'#3daa6e',fontWeight:700,marginBottom:2}}>Done</div>
+            <div style={{fontSize:12,color:'#666'}}>{result.imported} shifts imported · {result.skipped} skipped</div>
+          </div>
+          <button onClick={reset} style={SG}>Import another</button>
+        </div>)}
+        {status==='preview'&&preview.length===0&&<div style={{color:'#555',fontSize:13}}>No shifts found.</div>}
+        {status==='preview'&&preview.length>0&&(<div>
+          {unmatched.length>0&&(<div style={{background:'#1a1200',border:'1px solid #5a4000',borderRadius:8,padding:10,marginBottom:12,fontSize:12}}>
+            <div style={{color:'#C8873A',fontWeight:700,marginBottom:4}}>Unmatched workers (will skip):</div>
+            {unmatched.map(p=><div key={p.name} style={{color:'#666'}}>{p.name} ({p.shifts.length} shifts)</div>)}
+          </div>)}
+          <div style={{maxHeight:240,overflowY:'auto',marginBottom:12}}>
+            {matched.map(p=>(<div key={p.name} style={{marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <div style={{width:7,height:7,borderRadius:'50%',background:p.workerColor}}/>
+                <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
+                <div style={{fontSize:10,color:'#3daa6e',marginLeft:'auto'}}>{p.shifts.length} shifts</div>
+              </div>
+              {p.shifts.map((s,i)=><div key={i} style={{display:'flex',gap:12,fontSize:11,color:'#444',paddingLeft:15,marginBottom:1}}><span style={{width:85}}>{s.date}</span><span>{s.start}–{s.end}</span></div>)}
+            </div>))}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={doImport} style={SB}>Import {matched.reduce((s,p)=>s+p.shifts.length,0)} shifts</button>
+            <button onClick={reset} style={SG}>Cancel</button>
+          </div>
+        </div>)}
+      </div>
+      <div style={{...SC,padding:14}}>
+        <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>How to export from TimeSquared</div>
+        {['Open TimeSquared → Reports','Select Payroll Report','Set date range','Export → XLSX','Upload here'].map((s,i)=>(
+          <div key={i} style={{display:'flex',gap:10,marginBottom:5,fontSize:13,color:'#555'}}>
+            <span style={{color:'#C8873A',fontWeight:700,width:16}}>{i+1}.</span><span>{s}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Suppliers tab
+function SuppliersTab({ suppliers }) {
+  const [ns, setNs] = useState({name:'',contact:'',email:''});
+  const [ni, setNi] = useState({});
+  const [open, setOpen] = useState(null);
+  const low = suppliers.docs.flatMap(s=>(s.items||[]).filter(i=>i.currentStock<=i.lowStock&&i.lowStock>0).map(i=>({...i,sn:s.name})));
+  return (
+    <div>
+      {low.length>0&&(<div style={{background:'#1a1200',border:'1px solid #5a4000',borderRadius:10,padding:14,marginBottom:14}}>
+        <div style={{fontWeight:700,color:'#C8873A',fontSize:10,textTransform:'uppercase',letterSpacing:0.8,marginBottom:8}}>Low stock</div>
+        {low.map(i=><div key={i.id} style={{fontSize:12,color:'#666',marginBottom:3}}><span style={{color:'#C8873A'}}>{i.name}</span> — {i.currentStock} {i.unit} <span style={{color:'#333'}}>({i.sn})</span></div>)}
+      </div>)}
+      <div style={{...SC,padding:14,marginBottom:10}}>
+        <div style={{fontSize:10,color:'#C8873A',fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:10}}>Add supplier</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <input placeholder="Name" value={ns.name} onChange={e=>setNs(p=>({...p,name:e.target.value}))} style={{...SI,flex:'1 1 130px'}}/>
+          <input placeholder="Contact" value={ns.contact} onChange={e=>setNs(p=>({...p,contact:e.target.value}))} style={{...SI,flex:'1 1 110px'}}/>
+          <input placeholder="Email" value={ns.email} onChange={e=>setNs(p=>({...p,email:e.target.value}))} style={{...SI,flex:'1 1 140px'}}/>
+          <button onClick={async()=>{if(!ns.name.trim())return;await suppliers.add({name:ns.name.trim(),contact:ns.contact,email:ns.email,items:[]});setNs({name:'',contact:'',email:''}); }} style={SB}>Add</button>
+        </div>
+      </div>
+      {suppliers.docs.map(s=>(<div key={s.id} style={SC}>
+        <div style={{padding:'12px 14px',display:'flex',alignItems:'center',gap:10}}>
+          <div style={{flex:1}}><div style={{fontWeight:600}}>{s.name}</div>{s.contact&&<div style={{fontSize:11,color:'#555'}}>{s.contact}{s.email?' · '+s.email:''}</div>}</div>
+          <div style={{fontSize:11,color:'#444'}}>{(s.items||[]).length} items</div>
+          <button onClick={()=>setOpen(open===s.id?null:s.id)} style={SG}>{open===s.id?'Close':'Items'}</button>
+          <button onClick={()=>suppliers.remove(s.id)} style={{...SG,color:'#cc3222',borderColor:'#222'}}>✕</button>
+        </div>
+        {open===s.id&&(<div style={{borderTop:'1px solid #1e1e1e',padding:'10px 14px'}}>
+          {(s.items||[]).map(item=>(<div key={item.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #1a1a1a',flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:100}}><div style={{fontWeight:600,fontSize:12}}>{item.name}</div><div style={{fontSize:11,color:'#555'}}>{fmtMoney(item.price)}/{item.unit}</div></div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:11,color:'#555'}}>Stock:</span>
+              <input type="number" value={item.currentStock} onChange={e=>suppliers.update(s.id,{items:(s.items||[]).map(i=>i.id===item.id?{...i,currentStock:parseInt(e.target.value)||0}:i)})} style={{...SI,width:55,padding:'3px 6px',fontSize:12}}/>
+              <span style={{fontSize:10,color:item.currentStock<=item.lowStock&&item.lowStock>0?'#C8873A':'#333'}}>{item.currentStock<=item.lowStock&&item.lowStock>0?'LOW':'min '+item.lowStock}</span>
+            </div>
+            <button onClick={()=>suppliers.update(s.id,{items:(s.items||[]).filter(i=>i.id!==item.id)})} style={{...SG,color:'#cc3222',padding:'3px 8px',borderColor:'#222'}}>✕</button>
+          </div>))}
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}}>
+            <input placeholder="Item" value={ni[s.id]?.name||''} onChange={e=>setNi(p=>({...p,[s.id]:{...p[s.id],name:e.target.value}}))} style={{...SI,flex:'1 1 100px',fontSize:12,padding:'6px 8px'}}/>
+            <input placeholder="Unit" value={ni[s.id]?.unit||''} onChange={e=>setNi(p=>({...p,[s.id]:{...p[s.id],unit:e.target.value}}))} style={{...SI,width:60,fontSize:12,padding:'6px 8px'}}/>
+            <input placeholder="$/unit" type="number" value={ni[s.id]?.price||''} onChange={e=>setNi(p=>({...p,[s.id]:{...p[s.id],price:e.target.value}}))} style={{...SI,width:60,fontSize:12,padding:'6px 8px'}}/>
+            <input placeholder="Low #" type="number" value={ni[s.id]?.lowStock||''} onChange={e=>setNi(p=>({...p,[s.id]:{...p[s.id],lowStock:e.target.value}}))} style={{...SI,width:60,fontSize:12,padding:'6px 8px'}}/>
+            <button onClick={async()=>{const item=ni[s.id];if(!item?.name?.trim())return;const items=[...(s.items||[]),{id:Date.now().toString(),name:item.name.trim(),unit:item.unit||'each',price:parseFloat(item.price)||0,lowStock:parseInt(item.lowStock)||0,currentStock:parseInt(item.lowStock)||0}];await suppliers.update(s.id,{items});setNi(p=>({...p,[s.id]:{}}));}} style={{...SB,fontSize:12,padding:'6px 12px'}}>+ Add</button>
+          </div>
+        </div>)}
+      </div>))}
+    </div>
+  );
+}
+
+// Orders tab
+function OrdersTab({ suppliers, orders }) {
+  const [view, setView] = useState('new');
+  const [sel, setSel] = useState('');
+  const [qty, setQty] = useState({});
+  const [notes, setNotes] = useState('');
+  const sup = suppliers.docs.find(s=>s.id===sel);
+  const STATUS = {draft:{l:'Draft',c:'#555'},sent:{l:'Sent',c:'#C8873A'},received:{l:'Received',c:'#3daa6e'}};
+  const submit = async () => {
+    if(!sup) return;
+    const items=(sup.items||[]).filter(i=>qty[i.id]>0).map(i=>({...i,qty:parseFloat(qty[i.id])||0}));
+    if(!items.length) return;
+    await orders.add({supplierId:sup.id,supplierName:sup.name,items,total:items.reduce((s,i)=>s+i.price*i.qty,0),notes,status:'draft'});
+    setQty({}); setNotes(''); setView('history');
+  };
+  return (
+    <div>
+      <div style={{display:'flex',gap:6,marginBottom:20}}>
+        {[['new','New Order'],['history','History']].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={{padding:'7px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:view===v?'#C8873A':'#161616',color:view===v?'#fff':'#777'}}>{l}</button>
+        ))}
+      </div>
+      {view==='new'&&(<div>
+        <div style={{...SC,padding:14,marginBottom:10}}>
+          <select value={sel} onChange={e=>{setSel(e.target.value);setQty({});}} style={{...SI,background:'#111',border:'1px solid #222',color:'#f0ebe4'}}>
+            <option value="">Select supplier...</option>
+            {suppliers.docs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        {sup&&(<div style={{...SC,padding:14}}>
+          {(sup.items||[]).length===0?<div style={{color:'#444',fontSize:13}}>No items for this supplier yet</div>:(
+            <>
+              {(sup.items||[]).map(i=>(<div key={i.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid #1a1a1a'}}>
+                <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{i.name}</div><div style={{fontSize:11,color:'#555'}}>{fmtMoney(i.price)}/{i.unit}</div></div>
+                <input type="number" min="0" placeholder="Qty" value={qty[i.id]||''} onChange={e=>setQty(p=>({...p,[i.id]:e.target.value}))} style={{...SI,width:65,padding:'5px 7px'}}/>
+                <div style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'#C8873A',width:65,textAlign:'right'}}>{qty[i.id]>0?fmtMoney(i.price*qty[i.id]):''}</div>
+              </div>))}
+              <div style={{marginTop:12}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                  <span style={{fontWeight:600}}>Total</span>
+                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'#C8873A',fontSize:18}}>{fmtMoney((sup.items||[]).reduce((s,i)=>s+(i.price*(qty[i.id]||0)),0))}</span>
+                </div>
+                <textarea placeholder="Notes" value={notes} onChange={e=>setNotes(e.target.value)} style={{...SI,minHeight:50,marginBottom:10,resize:'vertical'}}/>
+                <button onClick={submit} style={{...SB,width:'100%'}}>Save as Draft</button>
+              </div>
+            </>
+          )}
+        </div>)}
+      </div>)}
+      {view==='history'&&(<div>
+        {[...orders.docs].sort((a,b)=>b.createdAt-a.createdAt).map(o=>(<div key={o.id} style={{...SC,padding:14}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+            <div style={{flex:1}}><div style={{fontWeight:600}}>{o.supplierName}</div></div>
+            <span style={{fontSize:11,fontWeight:700,color:STATUS[o.status]?.c,background:STATUS[o.status]?.c+'22',padding:'2px 8px',borderRadius:20}}>{STATUS[o.status]?.l}</span>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'#C8873A'}}>{fmtMoney(o.total)}</div>
+          </div>
+          {(o.items||[]).map(i=><div key={i.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#555',padding:'1px 0'}}><span>{i.name} × {i.qty}</span><span>{fmtMoney(i.price*i.qty)}</span></div>)}
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            {o.status==='draft'&&<button onClick={()=>orders.update(o.id,{status:'sent'})} style={{...SG,color:'#C8873A'}}>Mark Sent</button>}
+            {o.status==='sent'&&<button onClick={()=>orders.update(o.id,{status:'received'})} style={{...SG,color:'#3daa6e'}}>Mark Received</button>}
+            <button onClick={()=>orders.remove(o.id)} style={{...SG,color:'#cc3222',borderColor:'#222'}}>Delete</button>
+          </div>
+        </div>))}
+        {orders.docs.length===0&&<Empty msg="No orders yet"/>}
+      </div>)}
+    </div>
+  );
+}
+
+// Main app
+function App() {
+  const [tab, setTab] = useState('staff');
+  const workers = useFirestore('workers');
+  const shifts = useFirestore('shifts');
+  const suppliers = useFirestore('suppliers');
+  const orders = useFirestore('orders');
+  const TABS = [['staff','Staff'],['roster','Roster'],['payroll','Payroll'],['import','Import'],['suppliers','Suppliers'],['orders','Orders']];
+  return (
+    <div style={{minHeight:'100vh',background:'#0e0e0e'}}>
+      <div style={{background:'#0e0e0e',borderBottom:'1px solid #1e1e1e',padding:'0 16px',display:'flex',alignItems:'center',gap:11,height:50,position:'sticky',top:0,zIndex:10}}>
+        <img src={LOGO} alt="MGF" style={{height:34,width:34,objectFit:'contain'}}/>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:14,letterSpacing:-0.3,lineHeight:1.1}}>My Grill Friend</div>
+          <div style={{fontSize:9,color:'#333',letterSpacing:0.8,textTransform:'uppercase'}}>
+            {workers.ready?<span style={{color:'#2d6a40'}}>● synced</span>:'connecting...'}
+          </div>
+        </div>
+      </div>
+      <div style={{background:'#0a0a0a',borderBottom:'1px solid #1a1a1a',display:'flex',overflowX:'auto',padding:'0 6px'}}>
+        {TABS.map(([k,l])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{
+            flexShrink:0,padding:'11px 13px',background:'transparent',
+            color:tab===k?'#f0ebe4':'#444',
+            border:'none',borderBottom:tab===k?'2px solid #C8873A':'2px solid transparent',
+            cursor:'pointer',fontWeight:tab===k?600:400,fontSize:13,
+            fontFamily:'DM Sans,sans-serif',marginBottom:-1,letterSpacing:0.1
+          }}>{l}</button>
+        ))}
+      </div>
+      <div style={{padding:'20px 16px',maxWidth:860,margin:'0 auto'}}>
+        {!workers.ready?<div style={{textAlign:'center',color:'#2a2a2a',padding:'60px 0',fontSize:13}}>Connecting...</div>:(
+          <>
+            {tab==='staff'&&<StaffTab workers={workers} shifts={shifts}/>}
+            {tab==='roster'&&<RosterTab workers={workers} shifts={shifts}/>}
+            {tab==='payroll'&&<PayrollTab workers={workers} shifts={shifts}/>}
+            {tab==='import'&&<ImportTab workers={workers} shifts={shifts}/>}
+            {tab==='suppliers'&&<SuppliersTab suppliers={suppliers}/>}
+            {tab==='orders'&&<OrdersTab suppliers={suppliers} orders={orders}/>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
