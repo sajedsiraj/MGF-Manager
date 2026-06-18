@@ -489,7 +489,38 @@ function PayrollTab({ workers, shifts }) {
     const h=dates.reduce((s,date)=>{const sh=shifts.docs.find(x=>x.workerId===w.id&&x.date===date);return s+(sh?hw(sh.start,sh.end):0);},0);
     return {hours:parseFloat(h.toFixed(2)),pay:parseFloat((h*w.rate).toFixed(2))};
   };
-  const total=workers.docs.reduce((s,w)=>s+calc(w).pay,0);
+  const groupA = workers.docs.filter(w=>(w.payGroup||'A')==='A');
+  const groupB = workers.docs.filter(w=>w.payGroup==='B');
+  const totalA = groupA.reduce((s,w)=>s+calc(w).pay,0);
+  const totalB = groupB.reduce((s,w)=>s+calc(w).pay,0);
+  const total = totalA + totalB;
+
+  const renderGroup = (group, label, groupTotal) => (
+    <div style={{marginBottom:24}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,paddingBottom:8,borderBottom:'1px solid #1e1e1e'}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'#555'}}>{label}</div>
+        <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'#C8873A',fontSize:15}}>{fmtMoney(groupTotal)}</div>
+      </div>
+      {group.map(w=>{
+        const {hours,pay}=calc(w);
+        return (
+          <div key={w.id} style={{...SC,padding:14}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:w.color}}/>
+              <div style={{fontWeight:600,flex:1}}>{w.name}</div>
+              <div style={{fontSize:11,color:'#555'}}>{w.role}</div>
+            </div>
+            <div style={{display:'flex',gap:20}}>
+              <Kpi label="Rate" val={'$'+w.rate+'/hr'}/>
+              <Kpi label="Hours" val={hours>0?hours+'h':'—'}/>
+              <Kpi label="Pay" val={pay>0?fmtMoney(pay):'—'}/>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div>
       <div style={{display:'flex',gap:6,marginBottom:20}}>
@@ -499,23 +530,8 @@ function PayrollTab({ workers, shifts }) {
       </div>
       {workers.docs.length===0?<Empty msg="No staff yet"/>:(
         <>
-          {workers.docs.map(w=>{
-            const {hours,pay}=calc(w);
-            return (
-              <div key={w.id} style={{...SC,padding:14}}>
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:w.color}}/>
-                  <div style={{fontWeight:600,flex:1}}>{w.name}</div>
-                  <div style={{fontSize:11,color:'#555'}}>{w.role}</div>
-                </div>
-                <div style={{display:'flex',gap:20}}>
-                  <Kpi label="Rate" val={'$'+w.rate+'/hr'}/>
-                  <Kpi label="Hours" val={hours>0?hours+'h':'—'}/>
-                  <Kpi label="Pay" val={pay>0?fmtMoney(pay):'—'}/>
-                </div>
-              </div>
-            );
-          })}
+          {groupA.length>0&&renderGroup(groupA,'Group A',totalA)}
+          {groupB.length>0&&renderGroup(groupB,'Group B',totalB)}
           <div style={{background:'#C8873A',borderRadius:10,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
             <div style={{fontWeight:700,fontSize:14}}>Total</div>
             <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:24}}>{fmtMoney(total)}</div>
