@@ -161,6 +161,9 @@ function ShiftCell({ shift, color, onChange }) {
 const DSHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function RosterTab({ workers, shifts }) {
   const [off, setOff] = useState(0);
+  const [copying, setCopying] = useState(false);
+  const [copyTarget, setCopyTarget] = useState(1);
+  const [copyStatus, setCopyStatus] = useState(null);
   const dates = getWeekDates(off);
   const getShift = (wid, date) => shifts.docs.find(s=>s.workerId===wid&&s.date===date)||null;
   const setShift = async (wid, date, val) => {
@@ -168,9 +171,32 @@ function RosterTab({ workers, shifts }) {
     if (val) await shifts.set(id, {workerId:wid,date,...val});
     else await shifts.remove(id);
   };
+
+  const copyWeek = async () => {
+    setCopyStatus('copying');
+    const srcDates = getWeekDates(off).map(fmtDs);
+    const dstDates = getWeekDates(off + copyTarget).map(fmtDs);
+    let copied = 0;
+    for (const w of workers.docs) {
+      for (let i = 0; i < 7; i++) {
+        const src = getShift(w.id, srcDates[i]);
+        if (!src) continue;
+        const dstDate = dstDates[i];
+        const existing = getShift(w.id, dstDate);
+        if (existing) continue; // don't overwrite
+        await shifts.set(w.id+'_'+dstDate, {workerId:w.id, date:dstDate, start:src.start, end:src.end});
+        copied++;
+      }
+    }
+    setCopyStatus('done:'+copied);
+    setTimeout(() => { setCopying(false); setCopyStatus(null); }, 2000);
+  };
+
+  const targetLabel = copyTarget === 1 ? 'Next week' : copyTarget === -1 ? 'Prev week' : copyTarget > 0 ? `+${copyTarget} weeks` : `${copyTarget} weeks`;
+
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
         <button onClick={()=>setOff(o=>o-1)} style={SN}>← Prev</button>
         <div style={{textAlign:'center'}}>
           <div style={{fontWeight:600,fontSize:14}}>{dates[0].toLocaleDateString('en-AU',{day:'numeric',month:'short'})} – {dates[6].toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</div>
@@ -178,6 +204,30 @@ function RosterTab({ workers, shifts }) {
         </div>
         <button onClick={()=>setOff(o=>o+1)} style={SN}>Next →</button>
       </div>
+
+      {/* Copy week bar */}
+      {!copying ? (
+        <div style={{marginBottom:16,textAlign:'right'}}>
+          <button onClick={()=>{setCopying(true);setCopyTarget(1);}} style={{...SG,fontSize:12,color:'#C8873A',borderColor:'#3a2a10'}}>Copy this week →</button>
+        </div>
+      ) : (
+        <div style={{background:'#161616',border:'1px solid #222',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:12,color:'#888'}}>Copy shifts to:</span>
+          <select value={copyTarget} onChange={e=>setCopyTarget(parseInt(e.target.value))} style={{...SI,width:'auto',fontSize:12,padding:'4px 8px',background:'#111',border:'1px solid #222',color:'#f0ebe4'}}>
+            {[-4,-3,-2,-1,1,2,3,4].map(n=><option key={n} value={n}>{n>0?`+${n} week${n>1?'s':''}`:`${n} week${n<-1?'s':''}`} ({getWeekDates(off+n)[0].toLocaleDateString('en-AU',{day:'numeric',month:'short'})})</option>)}
+          </select>
+          {copyStatus==='copying' ? (
+            <span style={{fontSize:12,color:'#666'}}>Copying...</span>
+          ) : copyStatus && copyStatus.startsWith('done:') ? (
+            <span style={{fontSize:12,color:'#3daa6e'}}>✓ {copyStatus.split(':')[1]} shifts copied</span>
+          ) : (
+            <>
+              <button onClick={copyWeek} style={{...SB,fontSize:12,padding:'6px 14px'}}>Copy</button>
+              <button onClick={()=>setCopying(false)} style={{...SG,fontSize:12}}>Cancel</button>
+            </>
+          )}
+        </div>
+      )}
       {workers.docs.length===0?<Empty msg="Add workers first"/>:(
         <div style={{overflowX:'auto'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:560}}>
