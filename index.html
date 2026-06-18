@@ -130,13 +130,65 @@ function Kpi({ label, val, warn }) {
   return <div><div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>{label}</div><div style={{fontFamily:'DM Mono,monospace',fontWeight:600,fontSize:13,color:warn?'#cc3222':'#f0ebe4'}}>{val}</div></div>;
 }
 
+// Shift Templates Panel
+function TemplatesPanel({ templates }) {
+  const [adding, setAdding] = useState(false);
+  const [n, setN] = useState({name:'',start:'09:00',end:'17:00'});
+  const add = async () => {
+    if (!n.name.trim()) return;
+    await templates.add({name:n.name.trim(), start:n.start, end:n.end});
+    setN({name:'',start:'09:00',end:'17:00'}); setAdding(false);
+  };
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',color:'#555'}}>Shift Templates</div>
+        <button onClick={()=>setAdding(a=>!a)} style={{...SG,fontSize:11,padding:'4px 10px'}}>+ Add</button>
+      </div>
+      {adding&&(
+        <div style={{background:'#111',border:'1px solid #222',borderRadius:8,padding:12,marginBottom:10,display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
+          <input placeholder="Name (e.g. Morning)" value={n.name} onChange={e=>setN(p=>({...p,name:e.target.value}))} style={{...SI,flex:'1 1 120px',fontSize:12}}/>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input type="time" value={n.start} onChange={e=>setN(p=>({...p,start:e.target.value}))} style={{...SI,width:95,fontSize:12,padding:'5px 8px'}}/>
+            <span style={{color:'#555',fontSize:12}}>–</span>
+            <input type="time" value={n.end} onChange={e=>setN(p=>({...p,end:e.target.value}))} style={{...SI,width:95,fontSize:12,padding:'5px 8px'}}/>
+          </div>
+          <button onClick={add} style={{...SB,fontSize:12,padding:'6px 12px'}}>Save</button>
+          <button onClick={()=>setAdding(false)} style={{...SG,fontSize:12}}>Cancel</button>
+        </div>
+      )}
+      {templates.docs.length===0&&!adding&&<div style={{fontSize:12,color:'#333'}}>No templates yet — add common shifts like Morning 9–5, Close 5–1am</div>}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {templates.docs.map(t=>(
+          <div key={t.id} style={{background:'#161616',border:'1px solid #222',borderRadius:20,padding:'4px 12px',display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:12,fontWeight:600}}>{t.name}</span>
+            <span style={{fontSize:11,color:'#555',fontFamily:'DM Mono,monospace'}}>{t.start}–{t.end}</span>
+            <span style={{fontSize:11,color:'#666'}}>({hw(t.start,t.end)}h)</span>
+            <button onClick={()=>templates.remove(t.id)} style={{background:'transparent',border:'none',color:'#333',cursor:'pointer',fontSize:12,padding:'0 2px'}}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ShiftCell
-function ShiftCell({ shift, color, onChange }) {
+function ShiftCell({ shift, color, onChange, templateDocs }) {
   const [open, setOpen] = useState(false);
   const [s, setS] = useState(shift?.start||'09:00');
   const [e, setE] = useState(shift?.end||'17:00');
   if (open) return (
-    <div style={{background:'#1e1e1e',borderRadius:6,padding:6,minWidth:90}}>
+    <div style={{background:'#1e1e1e',borderRadius:6,padding:6,minWidth:110,zIndex:10,position:'relative'}}>
+      {templateDocs&&templateDocs.length>0&&(
+        <div style={{marginBottom:6}}>
+          {templateDocs.map(t=>(
+            <button key={t.id} onClick={()=>{setS(t.start);setE(t.end);}} style={{display:'block',width:'100%',background:'#252525',border:'none',color:'#C8873A',borderRadius:4,padding:'3px 6px',cursor:'pointer',fontSize:10,fontWeight:600,marginBottom:2,textAlign:'left'}}>
+              {t.name} <span style={{color:'#555'}}>{t.start}–{t.end}</span>
+            </button>
+          ))}
+          <div style={{height:'1px',background:'#333',margin:'4px 0'}}/>
+        </div>
+      )}
       <input type="time" value={s} onChange={ev=>setS(ev.target.value)} style={{...SI,padding:'2px 4px',fontSize:11,marginBottom:3}}/>
       <input type="time" value={e} onChange={ev=>setE(ev.target.value)} style={{...SI,padding:'2px 4px',fontSize:11,marginBottom:4}}/>
       <div style={{display:'flex',gap:3}}>
@@ -157,9 +209,145 @@ function ShiftCell({ shift, color, onChange }) {
   );
 }
 
+
+// Dashboard
+function DashboardTab({ workers, shifts, suppliers, orders }) {
+  const today = todayStr();
+  const weekDates = getWeekDates(0).map(fmtDs);
+
+  // Labour cost this week
+  const weekLabour = workers.docs.reduce((total, w) => {
+    return total + weekDates.reduce((s, date) => {
+      const sh = shifts.docs.find(x=>x.workerId===w.id&&x.date===date);
+      return s + (sh ? hw(sh.start,sh.end)*(w.rate||0) : 0);
+    }, 0);
+  }, 0);
+
+  // Total owed
+  const totalOwed = workers.docs.reduce((s,w)=>s+getPayInfo(w,shifts.docs).accruedPay,0);
+
+  // Who needs paying (overdue or due today/tomorrow)
+  const payAlerts = workers.docs.map(w=>({w, ...getPayInfo(w,shifts.docs)}))
+    .filter(x=>x.daysUntil!=null&&x.daysUntil<=2 || (x.daysSince!=null&&x.daysSince>14))
+    .sort((a,b)=>(a.daysUntil||99)-(b.daysUntil||99));
+
+  // Low stock
+  const lowStock = suppliers.docs.flatMap(s=>(s.items||[]).filter(i=>i.currentStock<=i.lowStock&&i.lowStock>0).map(i=>({...i,sn:s.name})));
+
+  // Supplier order reminders
+  const orderReminders = suppliers.docs.filter(s=>{
+    if (!s.orderEvery) return false;
+    if (!s.lastOrderDate) return true;
+    return daysBetween(s.lastOrderDate, today) >= s.orderEvery;
+  });
+
+  // Pending orders
+  const pendingOrders = orders.docs.filter(o=>o.status==='draft'||o.status==='sent');
+
+  const hasAlerts = payAlerts.length>0||lowStock.length>0||orderReminders.length>0||pendingOrders.length>0;
+
+  return (
+    <div>
+      {/* KPI row */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10,marginBottom:20}}>
+        {[
+          {label:'Total owed',val:fmtMoney(totalOwed),color:'#C8873A'},
+          {label:'Week labour',val:fmtMoney(weekLabour),color:'#7C9E6F'},
+          {label:'Staff',val:workers.docs.length,color:'#5B8FBF'},
+          {label:'Pending orders',val:pendingOrders.length,color:pendingOrders.length>0?'#C8873A':'#555'},
+        ].map(k=>(
+          <div key={k.label} style={{background:'#161616',border:'1px solid #222',borderRadius:10,padding:'14px 16px'}}>
+            <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.8,marginBottom:6}}>{k.label}</div>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:22,color:k.color}}>{k.val}</div>
+          </div>
+        ))}
+      </div>
+
+      {!hasAlerts&&(
+        <div style={{background:'#0d1a0d',border:'1px solid #2a4a2a',borderRadius:10,padding:16,textAlign:'center',color:'#3daa6e',fontSize:13,fontWeight:600}}>
+          ✓ All good — nothing needs attention
+        </div>
+      )}
+
+      {/* Pay alerts */}
+      {payAlerts.length>0&&(
+        <div style={{...SC,marginBottom:12}}>
+          <div style={{padding:'12px 16px',borderBottom:'1px solid #1e1e1e',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'#C8873A'}}>Pay due</div>
+          {payAlerts.map(({w,daysUntil,daysSince,accruedPay})=>(
+            <div key={w.id} style={{padding:'10px 16px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',gap:10}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:w.color,flexShrink:0}}/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{w.name}</div>
+                <div style={{fontSize:11,color:'#555'}}>{daysSince!=null?daysSince+'d since last pay':''}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'#C8873A',fontSize:14}}>{fmtMoney(accruedPay)}</div>
+                <div style={{fontSize:10,color:daysUntil===0?'#cc3222':daysUntil<=2?'#e07030':'#555'}}>
+                  {daysUntil===0?'PAY TODAY':daysUntil===1?'PAY TOMORROW':daysSince>14?'OVERDUE':'in '+daysUntil+'d'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Order reminders */}
+      {orderReminders.length>0&&(
+        <div style={{...SC,marginBottom:12}}>
+          <div style={{padding:'12px 16px',borderBottom:'1px solid #1e1e1e',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'#C8873A'}}>Order reminders</div>
+          {orderReminders.map(s=>{
+            const daysSince = s.lastOrderDate ? daysBetween(s.lastOrderDate, today) : null;
+            return (
+              <div key={s.id} style={{padding:'10px 16px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{s.name}</div>
+                  <div style={{fontSize:11,color:'#555'}}>{daysSince!=null?daysSince+'d since last order':'No orders placed yet'} · every {s.orderEvery}d</div>
+                </div>
+                <span style={{fontSize:10,color:'#e07030',fontWeight:700,background:'#1a1000',padding:'2px 8px',borderRadius:20}}>ORDER DUE</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Low stock */}
+      {lowStock.length>0&&(
+        <div style={{...SC,marginBottom:12}}>
+          <div style={{padding:'12px 16px',borderBottom:'1px solid #1e1e1e',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'#C8873A'}}>Low stock</div>
+          {lowStock.map(i=>(
+            <div key={i.id} style={{padding:'10px 16px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',gap:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{i.name}</div>
+                <div style={{fontSize:11,color:'#555'}}>{i.sn}</div>
+              </div>
+              <span style={{fontFamily:'DM Mono,monospace',fontSize:12,color:'#e07030'}}>{i.currentStock} {i.unit} left</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pending orders */}
+      {pendingOrders.length>0&&(
+        <div style={SC}>
+          <div style={{padding:'12px 16px',borderBottom:'1px solid #1e1e1e',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'#555'}}>Pending orders</div>
+          {pendingOrders.map(o=>(
+            <div key={o.id} style={{padding:'10px 16px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',gap:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{o.supplierName}</div>
+              </div>
+              <span style={{fontSize:11,color:o.status==='sent'?'#C8873A':'#555',background:'#1e1e1e',padding:'2px 8px',borderRadius:20}}>{o.status==='sent'?'Sent':'Draft'}</span>
+              <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'#C8873A',fontSize:13}}>{fmtMoney(o.total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Roster
 const DSHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-function RosterTab({ workers, shifts }) {
+function RosterTab({ workers, shifts, templates }) {
   const [off, setOff] = useState(0);
   const [copying, setCopying] = useState(false);
   const [copyTarget, setCopyTarget] = useState(1);
@@ -171,6 +359,12 @@ function RosterTab({ workers, shifts }) {
     if (val) await shifts.set(id, {workerId:wid,date,...val});
     else await shifts.remove(id);
   };
+  const weekLabourCost = dates.reduce((total, d) => {
+    return total + workers.docs.reduce((wTotal, w) => {
+      const s = getShift(w.id, fmtDs(d));
+      return wTotal + (s ? hw(s.start, s.end) * (w.rate||0) : 0);
+    }, 0);
+  }, 0);
 
   const copyWeek = async () => {
     setCopyStatus('copying');
@@ -259,7 +453,7 @@ function RosterTab({ workers, shifts }) {
                     </td>
                     {dates.map((d,i)=>{
                       const ds=fmtDs(d), sh=getShift(w.id,ds);
-                      return <td key={i} style={{padding:'3px 2px',borderBottom:'1px solid #1a1a1a',background:isToday(d)?'#130f0d':'transparent'}}><ShiftCell shift={sh} color={w.color} onChange={v=>setShift(w.id,ds,v)}/></td>;
+                      return <td key={i} style={{padding:'3px 2px',borderBottom:'1px solid #1a1a1a',background:isToday(d)?'#130f0d':'transparent'}}><ShiftCell shift={sh} color={w.color} onChange={v=>setShift(w.id,ds,v)} templateDocs={templates.docs}/></td>;
                     })}
                     <td style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontWeight:600,color:wkH>0?'#C8873A':'#2a2a2a',fontSize:13,borderBottom:'1px solid #1a1a1a'}}>{wkH>0?wkH.toFixed(1):'—'}</td>
                   </tr>
@@ -267,8 +461,18 @@ function RosterTab({ workers, shifts }) {
               })}
             </tbody>
           </table>
+          {/* Labour cost footer */}
+          <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:10,marginTop:10,paddingTop:10,borderTop:'1px solid #1e1e1e'}}>
+            <span style={{fontSize:11,color:'#555',textTransform:'uppercase',letterSpacing:0.5}}>Week labour cost</span>
+            <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:16,color:'#C8873A'}}>{fmtMoney(weekLabourCost)}</span>
+          </div>
         </div>
       )}
+
+      {/* Shift templates panel */}
+      <div style={{marginTop:20,borderTop:'1px solid #1e1e1e',paddingTop:16}}>
+        <TemplatesPanel templates={templates}/>
+      </div>
     </div>
   );
 }
@@ -286,7 +490,14 @@ function PayCard({ worker, allShifts, onPaid }) {
   const finalPay = customPay !== '' ? parseFloat(customPay)||0 : accruedPay;
 
   const markPaid = async () => {
-    await onPaid(worker.id, { lastPaidDate: payDate, lastPaidAmount: finalPay, lastPaidHours: accruedHours });
+    const historyEntry = { date: payDate, amount: finalPay, hours: accruedHours, ts: Date.now() };
+    const existing = worker.payHistory || [];
+    await onPaid(worker.id, {
+      lastPaidDate: payDate,
+      lastPaidAmount: finalPay,
+      lastPaidHours: accruedHours,
+      payHistory: [...existing, historyEntry]
+    });
     setMarking(false); setCustomPay('');
   };
 
@@ -346,6 +557,25 @@ function PayCard({ worker, allShifts, onPaid }) {
         <Kpi label="Days since paid" val={daysSince!=null?daysSince+'d':'—'} warn={daysSince!=null&&daysSince>16}/>
         <Kpi label="Next pay date" val={nextPayDate?fmtDate(nextPayDate):'—'}/>
       </div>
+
+      {/* Pay history */}
+      {(worker.payHistory||[]).length>0&&(
+        <details style={{borderTop:'1px solid #1a1a1a'}}>
+          <summary style={{padding:'8px 16px',fontSize:11,color:'#555',cursor:'pointer',listStyle:'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span>Pay history ({(worker.payHistory||[]).length})</span>
+            <span style={{color:'#333'}}>▾</span>
+          </summary>
+          <div style={{padding:'0 16px 10px'}}>
+            {[...(worker.payHistory||[])].reverse().map((h,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #1a1a1a',fontSize:12}}>
+                <span style={{color:'#888'}}>{fmtDate(h.date)}</span>
+                <span style={{color:'#666'}}>{h.hours}h</span>
+                <span style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'#C8873A'}}>{fmtMoney(h.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {!marking?(
         <div style={{padding:'10px 16px'}}>
@@ -707,7 +937,8 @@ function SuppliersTab({ suppliers }) {
           <input placeholder="Name" value={ns.name} onChange={e=>setNs(p=>({...p,name:e.target.value}))} style={{...SI,flex:'1 1 130px'}}/>
           <input placeholder="Contact" value={ns.contact} onChange={e=>setNs(p=>({...p,contact:e.target.value}))} style={{...SI,flex:'1 1 110px'}}/>
           <input placeholder="Email" value={ns.email} onChange={e=>setNs(p=>({...p,email:e.target.value}))} style={{...SI,flex:'1 1 140px'}}/>
-          <button onClick={async()=>{if(!ns.name.trim())return;await suppliers.add({name:ns.name.trim(),contact:ns.contact,email:ns.email,items:[]});setNs({name:'',contact:'',email:''}); }} style={SB}>Add</button>
+          <input placeholder="Order every X days" type="number" value={ns.orderEvery||''} onChange={e=>setNs(p=>({...p,orderEvery:e.target.value}))} style={{...SI,flex:'0 0 90px'}}/>
+          <button onClick={async()=>{if(!ns.name.trim())return;await suppliers.add({name:ns.name.trim(),contact:ns.contact,email:ns.email,orderEvery:parseInt(ns.orderEvery)||7,items:[],lastOrderDate:null});setNs({name:'',contact:'',email:'',orderEvery:''}); }} style={SB}>Add</button>
         </div>
       </div>
       {suppliers.docs.map(s=>(<div key={s.id} style={SC}>
@@ -753,6 +984,8 @@ function OrdersTab({ suppliers, orders }) {
     const items=(sup.items||[]).filter(i=>qty[i.id]>0).map(i=>({...i,qty:parseFloat(qty[i.id])||0}));
     if(!items.length) return;
     await orders.add({supplierId:sup.id,supplierName:sup.name,items,total:items.reduce((s,i)=>s+i.price*i.qty,0),notes,status:'draft'});
+    // update supplier lastOrderDate
+    await suppliers.update(sup.id, {lastOrderDate: todayStr()});
     setQty({}); setNotes(''); setView('history');
   };
   return (
@@ -816,7 +1049,8 @@ function App() {
   const shifts = useFirestore('shifts');
   const suppliers = useFirestore('suppliers');
   const orders = useFirestore('orders');
-  const TABS = [['staff','Staff'],['workers','Workers'],['roster','Roster'],['payroll','Payroll'],['import','Import'],['suppliers','Suppliers'],['orders','Orders']];
+  const templates = useFirestore('templates');
+  const TABS = [['dashboard','Dashboard'],['staff','Staff'],['workers','Workers'],['roster','Roster'],['payroll','Payroll'],['import','Import'],['suppliers','Suppliers'],['orders','Orders']];
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0e'}}>
       <div style={{background:'#0e0e0e',borderBottom:'1px solid #1e1e1e',padding:'0 16px',display:'flex',alignItems:'center',gap:11,height:50,position:'sticky',top:0,zIndex:10}}>
@@ -842,9 +1076,10 @@ function App() {
       <div style={{padding:'20px 16px',maxWidth:860,margin:'0 auto'}}>
         {!workers.ready?<div style={{textAlign:'center',color:'#2a2a2a',padding:'60px 0',fontSize:13}}>Connecting...</div>:(
           <>
+            {tab==='dashboard'&&<DashboardTab workers={workers} shifts={shifts} suppliers={suppliers} orders={orders}/>}
             {tab==='staff'&&<StaffTab workers={workers} shifts={shifts}/>}
             {tab==='workers'&&<WorkersTab workers={workers}/>}
-            {tab==='roster'&&<RosterTab workers={workers} shifts={shifts}/>}
+            {tab==='roster'&&<RosterTab workers={workers} shifts={shifts} templates={templates}/>}
             {tab==='payroll'&&<PayrollTab workers={workers} shifts={shifts}/>}
             {tab==='import'&&<ImportTab workers={workers} shifts={shifts}/>}
             {tab==='suppliers'&&<SuppliersTab suppliers={suppliers}/>}
