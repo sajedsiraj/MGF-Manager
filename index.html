@@ -276,14 +276,26 @@ function RosterTab({ workers, shifts }) {
 // Pay card
 function PayCard({ worker, allShifts, onPaid }) {
   const [marking, setMarking] = useState(false);
+  const [editingLast, setEditingLast] = useState(false);
   const [payDate, setPayDate] = useState(todayStr());
+  const [customPay, setCustomPay] = useState('');
+  const [editLastAmt, setEditLastAmt] = useState('');
   const { lastPaid, lastAmount, daysSince, daysUntil, nextPayDate, accruedHours, accruedPay } = getPayInfo(worker, allShifts);
   const burnPct = daysUntil!=null ? Math.max(0,Math.min(100,((14-daysUntil)/14)*100)) : 0;
   const urgColor = daysUntil===0?'#cc3222':daysUntil!=null&&daysUntil<=3?'#e07030':'#C8873A';
+  const finalPay = customPay !== '' ? parseFloat(customPay)||0 : accruedPay;
+
   const markPaid = async () => {
-    await onPaid(worker.id, { lastPaidDate: payDate, lastPaidAmount: accruedPay, lastPaidHours: accruedHours });
-    setMarking(false);
+    await onPaid(worker.id, { lastPaidDate: payDate, lastPaidAmount: finalPay, lastPaidHours: accruedHours });
+    setMarking(false); setCustomPay('');
   };
+
+  const saveLastAmt = async () => {
+    const amt = parseFloat(editLastAmt);
+    if (!isNaN(amt)) await onPaid(worker.id, { lastPaidAmount: amt });
+    setEditingLast(false);
+  };
+
   return (
     <div style={SC}>
       <div style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:12,borderBottom:'1px solid #1e1e1e'}}>
@@ -312,26 +324,55 @@ function PayCard({ worker, allShifts, onPaid }) {
         </div>
       )}
 
-      <div style={{padding:'12px 16px',display:'flex',gap:20,flexWrap:'wrap',borderBottom:marking?'1px solid #1e1e1e':'none'}}>
+      <div style={{padding:'12px 16px',display:'flex',gap:20,flexWrap:'wrap',borderBottom:'1px solid #1e1e1e'}}>
         <Kpi label="Last paid" val={lastPaid?fmtDate(lastPaid):'Never'}/>
-        <Kpi label="Last amount" val={lastAmount?fmtMoney(lastAmount):'—'}/>
+        <div>
+          <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>Last amount</div>
+          {editingLast?(
+            <div style={{display:'flex',gap:5,alignItems:'center'}}>
+              <input type="number" value={editLastAmt} onChange={e=>setEditLastAmt(e.target.value)}
+                style={{...SI,width:90,padding:'3px 6px',fontSize:12,fontFamily:'DM Mono,monospace'}}
+                autoFocus onKeyDown={e=>e.key==='Enter'&&saveLastAmt()}/>
+              <button onClick={saveLastAmt} style={{background:'#C8873A',border:'none',color:'#fff',borderRadius:4,padding:'3px 8px',cursor:'pointer',fontSize:11,fontWeight:700}}>✓</button>
+              <button onClick={()=>setEditingLast(false)} style={{background:'#1e1e1e',border:'none',color:'#666',borderRadius:4,padding:'3px 6px',cursor:'pointer',fontSize:11}}>✕</button>
+            </div>
+          ):(
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{fontFamily:'DM Mono,monospace',fontWeight:600,fontSize:13}}>{lastAmount?fmtMoney(lastAmount):'—'}</div>
+              <button onClick={()=>{setEditLastAmt(lastAmount||'');setEditingLast(true);}} style={{background:'transparent',border:'none',color:'#444',cursor:'pointer',fontSize:10,padding:'0 2px'}}>✏️</button>
+            </div>
+          )}
+        </div>
         <Kpi label="Days since paid" val={daysSince!=null?daysSince+'d':'—'} warn={daysSince!=null&&daysSince>16}/>
         <Kpi label="Next pay date" val={nextPayDate?fmtDate(nextPayDate):'—'}/>
       </div>
 
       {!marking?(
         <div style={{padding:'10px 16px'}}>
-          <button onClick={()=>setMarking(true)} style={{...SB,background:accruedPay>0?'#C8873A':'#1e1e1e',color:accruedPay>0?'#fff':'#444',fontSize:12,padding:'7px 14px'}}>
+          <button onClick={()=>{setMarking(true);setCustomPay('');}} style={{...SB,background:accruedPay>0?'#C8873A':'#1e1e1e',color:accruedPay>0?'#fff':'#444',fontSize:12,padding:'7px 14px'}}>
             {accruedPay>0?'Mark paid · '+fmtMoney(accruedPay):'Mark paid'}
           </button>
         </div>
       ):(
-        <div style={{padding:'12px 16px',background:'#111',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          <span style={{fontSize:12,color:'#666'}}>Pay date:</span>
-          <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{...SI,width:'auto',fontSize:12,padding:'5px 8px'}}/>
-          <span style={{fontFamily:'DM Mono,monospace',color:'#C8873A',fontWeight:600,fontSize:13}}>{fmtMoney(accruedPay)}</span>
-          <button onClick={markPaid} style={{...SB,fontSize:12,padding:'6px 14px'}}>Confirm</button>
-          <button onClick={()=>setMarking(false)} style={{...SG,fontSize:12}}>Cancel</button>
+        <div style={{padding:'12px 16px',background:'#111',borderTop:'1px solid #1e1e1e'}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:8}}>
+            <span style={{fontSize:12,color:'#666'}}>Pay date:</span>
+            <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{...SI,width:'auto',fontSize:12,padding:'5px 8px'}}/>
+          </div>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:10}}>
+            <span style={{fontSize:12,color:'#666'}}>Amount:</span>
+            <input type="number" value={customPay!==''?customPay:accruedPay}
+              onChange={e=>setCustomPay(e.target.value)}
+              style={{...SI,width:110,fontSize:13,padding:'5px 8px',fontFamily:'DM Mono,monospace',color:'#C8873A',fontWeight:600}}/>
+            {customPay!==''&&customPay!=accruedPay&&(
+              <span style={{fontSize:11,color:'#555'}}>auto was {fmtMoney(accruedPay)}</span>
+            )}
+            {customPay!==''&&<button onClick={()=>setCustomPay('')} style={{background:'transparent',border:'none',color:'#555',cursor:'pointer',fontSize:11}}>reset</button>}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={markPaid} style={{...SB,fontSize:12,padding:'6px 14px'}}>Confirm {fmtMoney(finalPay)}</button>
+            <button onClick={()=>{setMarking(false);setCustomPay('');}} style={{...SG,fontSize:12}}>Cancel</button>
+          </div>
         </div>
       )}
     </div>
