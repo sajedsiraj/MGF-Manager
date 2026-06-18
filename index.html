@@ -89,8 +89,9 @@ function fmtDs(d) { return d.toISOString().split('T')[0]; }
 function hw(start, end) {
   if (!start||!end) return 0;
   const [sh,sm]=start.split(':').map(Number), [eh,em]=end.split(':').map(Number);
-  const diff=(eh*60+em-(sh*60+sm))/60;
-  return diff>0?parseFloat(diff.toFixed(2)):0;
+  let diff=(eh*60+em-(sh*60+sm))/60;
+  if (diff < 0) diff += 24; // overnight shift e.g. 5pm -> 1am
+  return diff>0&&diff<24?parseFloat(diff.toFixed(2)):0;
 }
 function isToday(d) { const t=new Date(); return d.getDate()===t.getDate()&&d.getMonth()===t.getMonth()&&d.getFullYear()===t.getFullYear(); }
 function excelDate(s) { return new Date((s-25569)*86400000).toISOString().split('T')[0]; }
