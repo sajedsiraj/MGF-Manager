@@ -303,6 +303,209 @@ function PayHistoryTab({ workers }) {
 }
 
 
+
+// Weekly P&L Tab
+function PnlTab({ workers, shifts, orders, weeklyPnl }) {
+  const [off, setOff] = useState(0);
+  const dates = getWeekDates(off);
+  const weekKey = fmtDs(dates[0]); // monday date as the week's unique key
+  const weekLabel = dates[0].toLocaleDateString('en-AU',{day:'numeric',month:'short'}) + ' – ' + dates[6].toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+
+  const record = weeklyPnl.docs.find(w => w.id === weekKey) || {};
+  const [revenue, setRevenue] = useState('');
+  const [stockCost, setStockCost] = useState('');
+  const [editingRevenue, setEditingRevenue] = useState(false);
+  const [editingStock, setEditingStock] = useState(false);
+
+  useEffect(() => {
+    setRevenue(record.revenue != null ? String(record.revenue) : '');
+    setStockCost(record.stockCostOverride != null ? String(record.stockCostOverride) : '');
+    setEditingRevenue(false);
+    setEditingStock(false);
+  }, [weekKey, record.revenue, record.stockCostOverride]);
+
+  // Labour cost — auto from roster
+  const weekDates = dates.map(fmtDs);
+  const labourCost = workers.docs.reduce((total, w) => {
+    return total + weekDates.reduce((s, date) => {
+      const sh = shifts.docs.find(x=>x.workerId===w.id&&x.date===date);
+      return s + (sh ? hw(sh.start,sh.end)*(w.rate||0) : 0);
+    }, 0);
+  }, 0);
+
+  // Stock cost — auto-suggested from orders placed/received within this week
+  const ordersThisWeek = orders.docs.filter(o => {
+    if (!o.createdAt) return false;
+    const d = new Date(o.createdAt);
+    return d >= dates[0] && d < new Date(dates[6].getTime() + 86400000);
+  });
+  const suggestedStockCost = ordersThisWeek.reduce((s,o) => s + (o.total||0), 0);
+  const actualStockCost = stockCost !== '' ? parseFloat(stockCost)||0 : suggestedStockCost;
+
+  const rev = parseFloat(revenue) || 0;
+  const totalCost = labourCost + actualStockCost;
+  const profit = rev - totalCost;
+  const margin = rev > 0 ? (profit / rev) * 100 : null;
+  const labourPct = rev > 0 ? (labourCost / rev) * 100 : null;
+  const stockPct = rev > 0 ? (actualStockCost / rev) * 100 : null;
+
+  const saveRevenue = async () => {
+    await weeklyPnl.set(weekKey, { weekStart: weekKey, revenue: parseFloat(revenue)||0 });
+    setEditingRevenue(false);
+  };
+  const saveStock = async () => {
+    await weeklyPnl.set(weekKey, { weekStart: weekKey, stockCostOverride: stockCost === '' ? null : parseFloat(stockCost)||0 });
+    setEditingStock(false);
+  };
+  const resetStockToAuto = async () => {
+    setStockCost('');
+    await weeklyPnl.set(weekKey, { weekStart: weekKey, stockCostOverride: null });
+    setEditingStock(false);
+  };
+
+  // History — last several weeks with revenue entered
+  const history = weeklyPnl.docs.filter(w => w.revenue != null).sort((a,b)=>b.weekStart.localeCompare(a.weekStart)).slice(0,8);
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+        <button onClick={()=>setOff(o=>o-1)} style={SN}>← Prev</button>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontWeight:600,fontSize:14}}>{weekLabel}</div>
+          {off===0&&<div style={{fontSize:10,color:'#C8873A',letterSpacing:1,textTransform:'uppercase',marginTop:2}}>This week</div>}
+        </div>
+        <button onClick={()=>setOff(o=>o+1)} style={SN}>Next →</button>
+      </div>
+
+      {/* Revenue input */}
+      <div style={{...SC,padding:16,marginBottom:12}}>
+        <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.8,marginBottom:8}}>Revenue this week</div>
+        {!editingRevenue ? (
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:26,color:rev>0?'#3daa6e':'#444'}}>{rev>0?fmtMoney(rev):'Not entered'}</div>
+            <button onClick={()=>setEditingRevenue(true)} style={{...SG,fontSize:12}}>{rev>0?'Edit':'Enter revenue'}</button>
+          </div>
+        ) : (
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <input type="number" autoFocus value={revenue} onChange={e=>setRevenue(e.target.value)} placeholder="0.00"
+              style={{...SI,width:140,fontSize:16,fontFamily:'DM Mono,monospace',fontWeight:700,color:'#3daa6e'}}
+              onKeyDown={e=>e.key==='Enter'&&saveRevenue()}/>
+            <button onClick={saveRevenue} style={{...SB,fontSize:12}}>Save</button>
+            <button onClick={()=>setEditingRevenue(false)} style={{...SG,fontSize:12}}>Cancel</button>
+          </div>
+        )}
+      </div>
+
+      {/* Cost breakdown */}
+      <div style={{...SC,padding:16,marginBottom:12}}>
+        <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.8,marginBottom:12}}>Costs</div>
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #1a1a1a'}}>
+          <div>
+            <div style={{fontWeight:600,fontSize:13}}>Labour</div>
+            <div style={{fontSize:11,color:'#555'}}>auto from roster{labourPct!=null?' · '+labourPct.toFixed(1)+'% of revenue':''}</div>
+          </div>
+          <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:15,color:'#7C9E6F'}}>{fmtMoney(labourCost)}</div>
+        </div>
+
+        <div style={{padding:'8px 0',borderBottom:'1px solid #1a1a1a'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:13}}>Stock / supplies</div>
+              <div style={{fontSize:11,color:'#555'}}>
+                {stockCost!==''?'manually set':'auto from '+ordersThisWeek.length+' order'+(ordersThisWeek.length!==1?'s':'')+' this week'}
+                {stockPct!=null?' · '+stockPct.toFixed(1)+'% of revenue':''}
+              </div>
+            </div>
+            {!editingStock ? (
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:15,color:'#5B8FBF'}}>{fmtMoney(actualStockCost)}</div>
+                <button onClick={()=>setEditingStock(true)} style={{...SG,fontSize:11,padding:'4px 8px'}}>Edit</button>
+              </div>
+            ) : null}
+          </div>
+          {editingStock&&(
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+              <input type="number" autoFocus value={stockCost} onChange={e=>setStockCost(e.target.value)} placeholder={suggestedStockCost.toFixed(2)}
+                style={{...SI,width:120,fontSize:13,fontFamily:'DM Mono,monospace'}}/>
+              <button onClick={saveStock} style={{...SB,fontSize:12,padding:'6px 12px'}}>Save</button>
+              <button onClick={resetStockToAuto} style={{...SG,fontSize:12}}>Use auto (${suggestedStockCost.toFixed(2)})</button>
+              <button onClick={()=>setEditingStock(false)} style={{...SG,fontSize:12}}>Cancel</button>
+            </div>
+          )}
+        </div>
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0 0'}}>
+          <div style={{fontWeight:700,fontSize:13}}>Total cost</div>
+          <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:16,color:'#C8873A'}}>{fmtMoney(totalCost)}</div>
+        </div>
+      </div>
+
+      {/* Profit summary */}
+      <div style={{background: rev===0?'#161616':(profit>=0?'#0d1a0d':'#1e0a0a'), border:'1px solid '+(rev===0?'#222':(profit>=0?'#2a4a2a':'#4a1a1a')), borderRadius:10, padding:18, marginBottom:20}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.8,marginBottom:4}}>{profit>=0?'Profit':'Loss'} this week</div>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:28,color:rev===0?'#444':(profit>=0?'#3daa6e':'#cc3222')}}>
+              {rev===0?'—':(profit>=0?fmtMoney(profit):'-'+fmtMoney(Math.abs(profit)))}
+            </div>
+          </div>
+          {margin!=null&&(
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.8,marginBottom:4}}>Margin</div>
+              <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:20,color:profit>=0?'#3daa6e':'#cc3222'}}>{margin.toFixed(1)}%</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* History */}
+      {history.length>0&&(
+        <div>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'#555',marginBottom:10}}>Recent weeks</div>
+          <HistoryRows history={history} workers={workers} shifts={shifts} orders={orders}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryRows({ history, workers, shifts, orders }) {
+  return (
+    <>
+      {history.map(h => {
+        const weekStart = new Date(h.weekStart + 'T00:00:00');
+        const wDates = Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return fmtDs(d);});
+        const labour = workers.docs.reduce((total,w)=>total+wDates.reduce((s,date)=>{
+          const sh = shifts.docs.find(x=>x.workerId===w.id&&x.date===date);
+          return s+(sh?hw(sh.start,sh.end)*(w.rate||0):0);
+        },0),0);
+        const weekEnd = new Date(weekStart.getTime()+6*86400000+86400000);
+        const ordersInWeek = orders.docs.filter(o=>{
+          if(!o.createdAt) return false;
+          const d = new Date(o.createdAt);
+          return d>=weekStart && d<weekEnd;
+        });
+        const suggestedStock = ordersInWeek.reduce((s,o)=>s+(o.total||0),0);
+        const stock = h.stockCostOverride != null ? h.stockCostOverride : suggestedStock;
+        const cost = labour + stock;
+        const profit = (h.revenue||0) - cost;
+        return (
+          <div key={h.id} style={{...SC,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:13}}>{weekStart.toLocaleDateString('en-AU',{day:'numeric',month:'short'})} – {new Date(weekStart.getTime()+6*86400000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</div>
+              <div style={{fontSize:11,color:'#555'}}>Rev {fmtMoney(h.revenue)} · Labour {fmtMoney(labour)} · Stock {fmtMoney(stock)}</div>
+            </div>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:15,color:profit>=0?'#3daa6e':'#cc3222'}}>
+              {profit>=0?fmtMoney(profit):'-'+fmtMoney(Math.abs(profit))}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // Dashboard
 function DashboardTab({ workers, shifts, suppliers, orders }) {
   const today = todayStr();
@@ -1507,7 +1710,8 @@ function App() {
   const orders = useFirestore('orders');
   const templates = useFirestore('templates');
   const menuItems = useFirestore('menuItems');
-  const TABS = [['dashboard','Dashboard'],['staff','Staff'],['workers','Workers'],['roster','Roster'],['payroll','Payroll'],['history','Pay History'],['import','Import'],['menu','Menu'],['stock','Stock'],['suppliers','Suppliers'],['orders','Orders']];
+  const weeklyPnl = useFirestore('weeklyPnl');
+  const TABS = [['dashboard','Dashboard'],['staff','Staff'],['workers','Workers'],['roster','Roster'],['payroll','Payroll'],['history','Pay History'],['pnl','Weekly P&L'],['import','Import'],['menu','Menu'],['stock','Stock'],['suppliers','Suppliers'],['orders','Orders']];
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0e'}}>
       <div style={{background:'#0e0e0e',borderBottom:'1px solid #1e1e1e',padding:'0 16px',display:'flex',alignItems:'center',gap:11,height:50,position:'sticky',top:0,zIndex:10}}>
@@ -1539,6 +1743,7 @@ function App() {
             {tab==='roster'&&<RosterTab workers={workers} shifts={shifts} templates={templates}/>}
             {tab==='payroll'&&<PayrollTab workers={workers} shifts={shifts}/>}
             {tab==='history'&&<PayHistoryTab workers={workers}/>}
+            {tab==='pnl'&&<PnlTab workers={workers} shifts={shifts} orders={orders} weeklyPnl={weeklyPnl}/>}
             {tab==='import'&&<ImportTab workers={workers} shifts={shifts}/>}
             {tab==='menu'&&<MenuTab menuItems={menuItems} suppliers={suppliers}/>}
             {tab==='stock'&&<StockTab suppliers={suppliers}/>}
@@ -1555,3 +1760,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
+
