@@ -210,6 +210,96 @@ function ShiftCell({ shift, color, onChange, templateDocs }) {
 }
 
 
+// Pay History Tab
+function PayHistoryTab({ workers }) {
+  const [filter, setFilter] = useState('all');
+
+  // Flatten all pay history across all workers
+  const allEntries = workers.docs.flatMap(w =>
+    (w.payHistory || []).map(h => ({ ...h, workerName: w.name, workerColor: w.color, workerId: w.id }))
+  ).sort((a, b) => b.ts - a.ts);
+
+  const filtered = filter === 'all' ? allEntries : allEntries.filter(e => e.workerId === filter);
+
+  const totalFiltered = filtered.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // Group by month
+  const grouped = {};
+  filtered.forEach(e => {
+    const key = e.date ? e.date.slice(0, 7) : 'unknown';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(e);
+  });
+  const months = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  function fmtMonth(key) {
+    if (key === 'unknown') return 'Unknown';
+    const [y, m] = key.split('-');
+    return new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('en-AU', {month:'long', year:'numeric'});
+  }
+
+  return (
+    <div>
+      {/* Filter bar */}
+      <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap'}}>
+        <button onClick={()=>setFilter('all')} style={{padding:'7px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filter==='all'?'#C8873A':'#161616',color:filter==='all'?'#fff':'#777'}}>All staff</button>
+        {workers.docs.map(w=>(
+          <button key={w.id} onClick={()=>setFilter(w.id)} style={{padding:'7px 12px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filter===w.id?w.color:'#161616',color:filter===w.id?'#fff':'#777',display:'flex',alignItems:'center',gap:6}}>
+            <span style={{width:7,height:7,borderRadius:'50%',background:filter===w.id?'#fff':w.color,display:'inline-block',flexShrink:0}}/>
+            {w.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Summary */}
+      {filtered.length > 0 && (
+        <div style={{display:'flex',gap:16,marginBottom:20,padding:'14px 16px',background:'#161616',borderRadius:10,border:'1px solid #222'}}>
+          <div>
+            <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>Total paid</div>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:22,color:'#C8873A'}}>{fmtMoney(totalFiltered)}</div>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>Payments</div>
+            <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:22,color:'#f0ebe4'}}>{filtered.length}</div>
+          </div>
+          {filter !== 'all' && (
+            <div>
+              <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>Avg per pay</div>
+              <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:22,color:'#f0ebe4'}}>{fmtMoney(totalFiltered/filtered.length)}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div style={{textAlign:'center',color:'#333',padding:'50px 0',fontSize:13}}>
+          {filter === 'all' ? 'No payments recorded yet — mark staff as paid in the Staff tab' : 'No payments recorded for this worker yet'}
+        </div>
+      ) : (
+        months.map(month => (
+          <div key={month} style={{marginBottom:24}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,paddingBottom:6,borderBottom:'1px solid #1e1e1e'}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:0.5,color:'#555'}}>{fmtMonth(month)}</div>
+              <div style={{fontFamily:'DM Mono,monospace',fontSize:12,color:'#C8873A'}}>{fmtMoney(grouped[month].reduce((s,e)=>s+(e.amount||0),0))}</div>
+            </div>
+            {grouped[month].map((e, i) => (
+              <div key={i} style={{background:'#161616',border:'1px solid #222',borderRadius:8,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:9,height:9,borderRadius:'50%',background:e.workerColor,flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{e.workerName}</div>
+                  <div style={{fontSize:11,color:'#555'}}>{fmtDate(e.date)}{e.hours?' · '+e.hours+'h':''}</div>
+                </div>
+                <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:16,color:'#C8873A'}}>{fmtMoney(e.amount)}</div>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+
 // Dashboard
 function DashboardTab({ workers, shifts, suppliers, orders }) {
   const today = todayStr();
@@ -1050,7 +1140,7 @@ function App() {
   const suppliers = useFirestore('suppliers');
   const orders = useFirestore('orders');
   const templates = useFirestore('templates');
-  const TABS = [['dashboard','Dashboard'],['staff','Staff'],['workers','Workers'],['roster','Roster'],['payroll','Payroll'],['import','Import'],['suppliers','Suppliers'],['orders','Orders']];
+  const TABS = [['dashboard','Dashboard'],['staff','Staff'],['workers','Workers'],['roster','Roster'],['payroll','Payroll'],['history','Pay History'],['import','Import'],['suppliers','Suppliers'],['orders','Orders']];
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0e'}}>
       <div style={{background:'#0e0e0e',borderBottom:'1px solid #1e1e1e',padding:'0 16px',display:'flex',alignItems:'center',gap:11,height:50,position:'sticky',top:0,zIndex:10}}>
@@ -1081,6 +1171,7 @@ function App() {
             {tab==='workers'&&<WorkersTab workers={workers}/>}
             {tab==='roster'&&<RosterTab workers={workers} shifts={shifts} templates={templates}/>}
             {tab==='payroll'&&<PayrollTab workers={workers} shifts={shifts}/>}
+            {tab==='history'&&<PayHistoryTab workers={workers}/>}
             {tab==='import'&&<ImportTab workers={workers} shifts={shifts}/>}
             {tab==='suppliers'&&<SuppliersTab suppliers={suppliers}/>}
             {tab==='orders'&&<OrdersTab suppliers={suppliers} orders={orders}/>}
